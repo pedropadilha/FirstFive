@@ -7,8 +7,8 @@ int rightSensor = 2;
 int QTD_LEITURAS = 10;
 int WAIT_TIME = 5;
 
-int DIREITA_FRENTE = 5;
-int DIREITA_ATRAS = 6;
+int DIREITA_FRENTE = 6;
+int DIREITA_ATRAS = 5;
 
 int ESQUERDA_FRENTE = 9;
 int ESQUERDA_ATRAS = 10;
