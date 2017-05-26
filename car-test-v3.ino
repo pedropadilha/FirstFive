@@ -4,6 +4,13 @@ int leftSensor = 0;
 int middleSensor = 1;
 int rightSensor = 2;
 
+boolean mode = false;
+
+const byte buttonInterrupt = 2;
+const byte modeStatus = 8;
+const byte leitor1 = 13;
+const byte leitor2 = 12;
+
 int QTD_LEITURAS = 10;
 int WAIT_TIME = 5;
 
@@ -22,6 +29,13 @@ void setup()
 {
   Serial.begin(9600);
   
+  pinMode(buttonInterrupt, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(buttonInterrupt), changeMode, FALLING);
+
+  pinMode(modeStatus, OUTPUT);
+  pinMode(leitor1, INPUT);
+  pinMode(leitor2, INPUT);
+  
   pinMode(DIREITA_FRENTE, OUTPUT);
   pinMode(DIREITA_ATRAS, OUTPUT);
 
@@ -35,6 +49,38 @@ void setup()
 
 void loop()
 {
+
+  // mode external controller
+  while (mode) {
+    digitalWrite(modeStatus, HIGH);
+    
+    int leitura1 = digitalRead(leitor1);
+    int leitura2 = digitalRead(leitor2);
+
+    if (leitura1 == 0) {
+      if (leitura2 == 0) {
+        Serial.println("Frente");
+        moveForward();
+      } else {
+        Serial.println("Esquerda");
+        turnLeft();
+      }
+    } else {
+      if (leitura2 == 0) {
+        Serial.println("Direita");
+        turnRight();
+      } else {
+        Serial.println("Parado");
+        
+        analogWrite(DIREITA_FRENTE, LOW);
+        analogWrite(DIREITA_ATRAS, LOW);
+        
+        analogWrite(ESQUERDA_FRENTE, LOW);
+        analogWrite(ESQUERDA_ATRAS, LOW);
+      }
+    }
+    
+  }
 
   // Leitura inicial dos sensores
   updateSensors();
@@ -251,3 +297,12 @@ int calculateFinalReading(int paramArray[])
   return leituraFinal;
 }
 
+
+void changeMode() {
+  static unsigned long lastInterruptTime = 0;
+  unsigned long interruptTime = millis();
+  if (interruptTime - lastInterruptTime > 200) {
+    mode = !mode;
+  }
+  lastInterruptTime = interruptTime;
+}
