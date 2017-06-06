@@ -1,18 +1,18 @@
-#define countof(X) (sizeof(X) / sizeof(X[0]))
+const byte btnInterrupt = 2;
+
+const byte leitor1 = 7;
+const byte leitor2 = 8;
+
+const byte ledMode = 13;
+
+boolean mode = false;
 
 int leftSensor = 0;
 int middleSensor = 1;
 int rightSensor = 2;
 
-boolean mode = false;
-
-const byte buttonInterrupt = 2;
-const byte modeStatus = 8;
-const byte leitor1 = 13;
-const byte leitor2 = 12;
-
-int QTD_LEITURAS = 10;
-int WAIT_TIME = 5;
+int WAIT_TIME = 9;
+int WAIT_TIME_CURVA = 3;
 
 int DIREITA_FRENTE = 6;
 int DIREITA_ATRAS = 5;
@@ -22,19 +22,20 @@ int ESQUERDA_ATRAS = 10;
 
 int _direction;
 
-int DEBUG_MODE = 0;
+int anda = 140;
+int andacurva = 40;
+int andacurva2 = 20;
 
-
-void setup()
-{
+void setup() {
   Serial.begin(9600);
-  
-  pinMode(buttonInterrupt, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(buttonInterrupt), changeMode, FALLING);
 
-  pinMode(modeStatus, OUTPUT);
+  pinMode(ledMode, OUTPUT);
+
   pinMode(leitor1, INPUT);
   pinMode(leitor2, INPUT);
+
+  pinMode(btnInterrupt, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(btnInterrupt), changeMode, FALLING);
   
   pinMode(DIREITA_FRENTE, OUTPUT);
   pinMode(DIREITA_ATRAS, OUTPUT);
@@ -47,47 +48,52 @@ void setup()
   pinMode(A2, INPUT);
 }
 
-void loop()
-{
+void loop() {
 
-  // mode external controller
   while (mode) {
-    digitalWrite(modeStatus, HIGH);
+    digitalWrite(ledMode, HIGH);
     
     int leitura1 = digitalRead(leitor1);
     int leitura2 = digitalRead(leitor2);
 
-    if (leitura1 == 0) {
-      if (leitura2 == 0) {
-        Serial.println("Frente");
-        moveForward();
-      } else {
-        Serial.println("Esquerda");
-        turnLeft();
-      }
-    } else {
-      if (leitura2 == 0) {
-        Serial.println("Direita");
-        turnRight();
-      } else {
-        Serial.println("Parado");
-        
-        analogWrite(DIREITA_FRENTE, LOW);
-        analogWrite(DIREITA_ATRAS, LOW);
-        
-        analogWrite(ESQUERDA_FRENTE, LOW);
-        analogWrite(ESQUERDA_ATRAS, LOW);
-      }
+    if (leitura1 == 0 && leitura2 == 0) {
+      Serial.println("Parado");
+      analogWrite(DIREITA_FRENTE, LOW);
+      analogWrite(ESQUERDA_FRENTE, LOW);
     }
     
+    else if (leitura1 == 0 && leitura2 == 1) {
+      Serial.println("Esquerda");
+      analogWrite(ESQUERDA_FRENTE, 100);
+      analogWrite(DIREITA_FRENTE, 50);
+      delay(WAIT_TIME_CURVA);
+      analogWrite(ESQUERDA_FRENTE, LOW);
+      analogWrite(DIREITA_FRENTE, LOW);
+    }
+    
+    else if (leitura1 == 1 && leitura2 == 0) {
+      Serial.println("Direita");
+      analogWrite(DIREITA_FRENTE, 100);
+      analogWrite(ESQUERDA_FRENTE, 50);
+      delay(WAIT_TIME_CURVA);
+      analogWrite(DIREITA_FRENTE, LOW);
+      analogWrite(ESQUERDA_ATRAS, LOW);
+    }
+    
+    else if (leitura1 == 1 && leitura2 == 1) {
+      Serial.println("Frente");
+      moveForward();
+    }
+
   }
+
+  digitalWrite(ledMode, LOW);
 
   // Leitura inicial dos sensores
   updateSensors();
 
   // Enquanto estiver 'reto'
-  while(leftSensor==0 && middleSensor==1 && rightSensor==0)
-  {
+  while(leftSensor==0 && middleSensor==1 && rightSensor==0) {
     // Anda para frente
     moveForward();
 
@@ -108,201 +114,93 @@ void loop()
       break;
   }
 
-  Serial.print("*************");
-  Serial.println(millis());
-
 }
 
-void updateSensors()
-{
-  int leftSensorReadings[QTD_LEITURAS];
-  int middleSensorReadings[QTD_LEITURAS];
-  int rightSensorReadings[QTD_LEITURAS];
-
-  for(int x=0; x < QTD_LEITURAS; x++)
-  {
-    leftSensorReadings[x] = getLeftRead();
-    middleSensorReadings[x] = getMiddleRead();
-    rightSensorReadings[x] = getRightRead();
-  }  
+void updateSensors() {
+  leftSensor = getLeftRead();
+  middleSensor = getMiddleRead();
+  rightSensor = getRightRead();
   
-  leftSensor = calculateFinalReading(leftSensorReadings);
-  middleSensor = calculateFinalReading(middleSensorReadings);
-  rightSensor = calculateFinalReading(rightSensorReadings);
-  
-  if(leftSensor > 500)
-  {
+  if(leftSensor > 500) {
     leftSensor = 1; 
   } else {
     leftSensor = 0;  
   }
 
-  if(rightSensor > 500)
-  {
+  if(rightSensor > 500) {
     rightSensor = 1; 
   } else {
     rightSensor = 0;  
   }
 
-  if(middleSensor > 500)
-  {
+  if(middleSensor > 500) {
     middleSensor = 1; 
   } else {
     middleSensor = 0;  
   }
 
-  if(DEBUG_MODE)
-  {
-    Serial.print(leftSensor);
-    Serial.print("|");
-    Serial.print(middleSensor);
-    Serial.print("|");
-    Serial.println(rightSensor);
-  }
 }
 
-int getLeftRead() 
-{
+int getLeftRead() {
   int leitura = analogRead(A0);
-
-  if(DEBUG_MODE)
-  {
-    Serial.print( "esquerda= " );
-    Serial.println( leitura );
-  }
   return leitura;
 }
 
-int getMiddleRead() 
-{
+int getMiddleRead() {
   int leitura = analogRead(A1);
-
-  if(DEBUG_MODE)
-  {
-    Serial.print( "meio= " );
-    Serial.println( leitura );
-  }
   return leitura;
 }
 
-int getRightRead() 
-{
+int getRightRead() {
   int leitura = analogRead(A2);
-
-  if(DEBUG_MODE)
-  {
-    Serial.print( "direita= " );
-    Serial.println( leitura );
-  }
   return leitura;
 }
 
-void moveForward()
-{
+void moveForward() {
 
-  if(DEBUG_MODE)
-  {
-    Serial.println( "andando para frente" );
-  }
-
-  /*
-  digitalWrite(DIREITA_FRENTE, HIGH);
-  digitalWrite(ESQUERDA_FRENTE, HIGH);
-  delay(WAIT_TIME);
-  digitalWrite(DIREITA_FRENTE, LOW);
-  digitalWrite(ESQUERDA_FRENTE, LOW);
-  */
-
-  analogWrite(DIREITA_FRENTE, 150);
-  analogWrite(ESQUERDA_FRENTE, 150);
+  analogWrite(DIREITA_FRENTE, anda);
+  analogWrite(ESQUERDA_FRENTE, anda);
   delay(WAIT_TIME);
   analogWrite(DIREITA_FRENTE, LOW);
   analogWrite(ESQUERDA_FRENTE, LOW);
 
 }
 
-int determineNewDirection()
-{
+int determineNewDirection() {
   int result = 0;
   
   updateSensors();
 
-  if(leftSensor==1 && rightSensor==0)
-  {
+  if(leftSensor==1 && rightSensor==0) {
     result = 1;  
-  } else if(rightSensor==1 && leftSensor==0)
-  {
+  } else if(rightSensor==1 && leftSensor==0) {
     result = 2;  
   }
 
   return result;
 }
 
-void turnLeft()
-{
-
-  if(DEBUG_MODE)
-  {
-    Serial.println( "vira para esquerda" );
-  }
-
-  // Gira para esquerda
-  /*
-  digitalWrite(DIREITA_FRENTE, HIGH);
-  delay(WAIT_TIME);
-  digitalWrite(DIREITA_FRENTE, LOW);
-  */
-
-  analogWrite(DIREITA_FRENTE, 150);
-  analogWrite(ESQUERDA_ATRAS, 30);
-  delay(WAIT_TIME);
+void turnLeft() {
+  analogWrite(DIREITA_FRENTE, andacurva);
+  analogWrite(ESQUERDA_ATRAS, andacurva2);
+  delay(WAIT_TIME_CURVA);
   analogWrite(DIREITA_FRENTE, LOW);
   analogWrite(ESQUERDA_ATRAS, LOW);
-
 }
 
-void turnRight()
-{
-
-  if(DEBUG_MODE)
-  {
-    Serial.println( "vira para direita" );
-  }
-
-  // Gira para esquerda
-  /*  
-  digitalWrite(ESQUERDA_FRENTE, HIGH);
-  delay(WAIT_TIME);
-  digitalWrite(ESQUERDA_FRENTE, LOW);
-  */
-
-  analogWrite(ESQUERDA_FRENTE, 150);
-  analogWrite(DIREITA_ATRAS, 30);
-  delay(WAIT_TIME);
+void turnRight() {
+  analogWrite(ESQUERDA_FRENTE, andacurva);
+  analogWrite(DIREITA_ATRAS, andacurva2);
+  delay(WAIT_TIME_CURVA);
   analogWrite(ESQUERDA_FRENTE, LOW);
   analogWrite(DIREITA_ATRAS, LOW);
-
 }
-
-int calculateFinalReading(int paramArray[])
-{
-  int leituraFinal = 0;
-  
-  for(int x=0; x < QTD_LEITURAS; x++)
-  {
-    leituraFinal += paramArray[x];
-  }
-  leituraFinal /= QTD_LEITURAS;
-
-  return leituraFinal;
-}
-
 
 void changeMode() {
-  static unsigned long lastInterruptTime = 0;
+  static unsigned long lastInterrupt = 0;
   unsigned long interruptTime = millis();
-  if (interruptTime - lastInterruptTime > 200) {
+  if (interruptTime - lastInterrupt > 200) {
     mode = !mode;
   }
-  lastInterruptTime = interruptTime;
+  lastInterrupt = interruptTime;
 }
